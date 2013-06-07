@@ -72,6 +72,7 @@ sub check_soa
 sub check_record
 {
     my ($name, $ttl, $type, $content, $prio, $record_type) = @_;
+    my $fqdn    = fqdn_regex();
     my $stat    = 1;
     my $message = "ok";
     my $sth;
@@ -157,9 +158,9 @@ sub check_record
     {
         $message = "NS record must contain a valid domain name";
     }
-    elsif ($type eq 'PTR' && (!is_ipv4($content) && !is_ipv6($content)))
+    elsif ($type eq 'PTR' && $content !~ m{ $fqdn }xmsi )
     {
-        $message = "PTR record must be a valid ip address";
+        $message = "PTR record must be a valid hostname";
     }
     elsif ($type eq 'SPF' && $content !~ m/(\w)+/)
     {
@@ -228,6 +229,19 @@ sub soa_email_regex
                  )  +[a-z]{2,63}
 
            \b/xmsi;
+}
+
+sub fqdn_regex
+{
+    return qr/\b
+                 (   
+                    (?=[a-z0-9-]{1,63}\.)
+
+                    (xn--)?[a-z0-9]+(-[a-z0-9]+)*\.
+
+                 )  +[a-z]{2,63}
+
+           \b/xms;
 }
 
 1;
