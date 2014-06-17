@@ -195,7 +195,6 @@ post '/domains/edit/records/id/:id/update/domain' => sub {
     my $domain_info = database->quick_select('domains', {id => $domain_id});
     my $domain_old_serial  = $domain_info->{notified_serial} || 0;
     my $domain_serial      = calc_serial($domain_old_serial);
-    my $record_change_date = ($year . $month . $day . 0 . 1);
 
     my $sth = database->prepare(
                      "select count(name) as count from domains where name = ?");
@@ -219,7 +218,6 @@ post '/domains/edit/records/id/:id/update/domain' => sub {
                                {
                                 name            => $domain,
                                 type            => $type,
-                                notified_serial => $domain_serial,
                                 master          => undef
                                }
                               );
@@ -241,7 +239,7 @@ post '/domains/edit/records/id/:id/update/domain' => sub {
                                    {
                                     name        => $row->{name},
                                     content     => $row->{content},
-                                    change_date => $record_change_date
+                                    change_date => $domain_serial
                                    }
                                   );
         }
@@ -260,7 +258,6 @@ post '/domains/edit/records/id/:id/update/domain' => sub {
                                 name            => $domain,
                                 type            => $type,
                                 master          => $master,
-                                notified_serial => $domain_serial
                                }
                               );
         database->quick_delete('domains_acl_tango', {domain_id => $domain_id});
@@ -344,7 +341,6 @@ post '/domains/edit/records/id/:id/add' => sub {
         return redirect "/domains/edit/records/id/$domain_id";
     }
 
-    my $record_change_date = ($year . $month . $day . 0 . 1);
 
     if (
         ($domain_id != 0 && !defined $prio)
@@ -363,12 +359,9 @@ post '/domains/edit/records/id/:id/add' => sub {
                                 type        => $type,
                                 ttl         => $ttl,
                                 content     => $content,
-                                change_date => $record_change_date
+                                change_date => $domain_serial
                                }
                               );
-        database->quick_update('domains',
-                               {id              => $domain_id},
-                               {notified_serial => $domain_serial});
 
         flash message => "Record added";
     }
@@ -391,12 +384,9 @@ post '/domains/edit/records/id/:id/add' => sub {
                                 ttl         => $ttl,
                                 content     => $content,
                                 prio        => $prio,
-                                change_date => $record_change_date
+                                change_date => $domain_serial
                                }
                               );
-        database->quick_update('domains',
-                               {id              => $domain_id},
-                               {notified_serial => $domain_serial});
 
         flash message => "Record added";
     }
@@ -433,10 +423,6 @@ post '/domains/edit/records/id/:id/add/template' => sub {
         my $domain_old_serial = $domain->{notified_serial} || 0;
         my $domain_serial = calc_serial($domain_old_serial);
 
-        database->quick_update('domains',
-                               {id              => $domain_id},
-                               {notified_serial => $domain_serial});
-        my $record_change_date = ($year . $month . $day . 0 . 1);
 
         database->quick_delete('records', {domain_id => $domain_id});
         my $template =
@@ -463,7 +449,7 @@ post '/domains/edit/records/id/:id/add/template' => sub {
                                     content     => $template_row->{content},
                                     ttl         => $template_row->{ttl},
                                     prio        => $template_row->{prio},
-                                    change_date => $record_change_date
+                                    change_date => $domain_serial
                                    }
                                   );
         }
@@ -589,7 +575,6 @@ post '/domains/edit/records/id/:id/find/replace' => sub {
     my $serial = database->quick_select('domains', {id => $domain_id});
     my $domain_old_serial  = $serial->{notified_serial} || 0;
     my $domain_serial      = calc_serial($domain_old_serial);
-    my $record_change_date = ($year . $month . $day . 0 . 1);
 
     if ($find_in eq 'content' || $find_in eq 'ttl' || $find_in eq 'prio')
     {
@@ -598,7 +583,7 @@ post '/domains/edit/records/id/:id/find/replace' => sub {
                                {domain_id => $domain_id, $find_in => $find},
                                {
                                 $find_in    => $replace,
-                                change_date => $record_change_date
+                                change_date => $domain_serial
                                }
                               );
 
@@ -692,8 +677,6 @@ ajax '/domains/edit/records/update/soa' => sub {
     my $domain_serial     = calc_serial($domain_old_serial);
     my $soa               = database->quick_select('records',
                                      {domain_id => $domain_id, type => 'SOA'});
-    my $record_old_change_date = $soa->{change_date} || 0;
-    my $record_change_date = calc_serial($record_old_change_date);
 
     if ($count->{count} == 0 || $count->{count} > 1)
     {
@@ -707,14 +690,11 @@ ajax '/domains/edit/records/update/soa' => sub {
              domain_id => $domain_id,
              type      => 'SOA',
              content =>
-               "$name_server $contact $domain_serial $refresh $retry $expire $minimum",
+               "$name_server $contact 0 $refresh $retry $expire $minimum",
              ttl         => $ttl,
-             change_date => $record_change_date
+             change_date => $domain_serial
             }
         );
-        database->quick_update('domains',
-                               {id              => $domain_id},
-                               {notified_serial => $domain_serial});
 
         return {
                 stat        => 'ok',
@@ -735,14 +715,11 @@ ajax '/domains/edit/records/update/soa' => sub {
             {id => $id, type => 'SOA'},
             {
              content =>
-               "$name_server $contact $domain_serial $refresh $retry $expire $minimum",
+               "$name_server $contact 0 $refresh $retry $expire $minimum",
              ttl         => $ttl,
-             change_date => $record_change_date
+             change_date => $domain_serial
             }
         );
-        database->quick_update('domains',
-                               {id              => $domain_id},
-                               {notified_serial => $domain_serial});
 
         return {
                 stat        => 'ok',
@@ -856,9 +833,6 @@ ajax '/domains/edit/records/update/record' => sub {
 
     my $domain_old_serial      = $domain->{notified_serial} || 0;
     my $domain_serial          = calc_serial($domain_old_serial);
-    my $soa                    = database->quick_select('records', {id => $id});
-    my $record_old_change_date = $soa->{change_date} || 0;
-    my $record_change_date     = calc_serial($record_old_change_date);
 
     if (
         $id != 0
@@ -881,12 +855,9 @@ ajax '/domains/edit/records/update/record' => sub {
                                     ttl         => $ttl,
                                     prio        => $prio,
                                     content     => $content,
-                                    change_date => $record_change_date
+                                    change_date => $domain_serial
                                    }
                                   );
-            database->quick_update('domains',
-                                   {id              => $domain_id->{domain_id}},
-                                   {notified_serial => $domain_serial});
         }
         else
         {
@@ -898,12 +869,9 @@ ajax '/domains/edit/records/update/record' => sub {
                                     type        => $type,
                                     ttl         => $ttl,
                                     content     => $content,
-                                    change_date => $record_change_date
+                                    change_date => $domain_serial
                                    }
                                   );
-            database->quick_update('domains',
-                                   {id              => $domain_id->{domain_id}},
-                                   {notified_serial => $domain_serial});
         }
 
         $name =~ s/$domain->{name}//;
